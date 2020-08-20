@@ -26,16 +26,18 @@ import org.bdgenomics.adam.rdd.read.{
   FASTQInFormatter
 }
 import org.bdgenomics.adam.sql.{ Alignment => AlignmentProduct }
+import org.bdgenomics.adam.models.ReadGroupDictionary
 import org.bdgenomics.cannoli.builder.CommandBuilders
 import org.bdgenomics.formats.avro.Alignment
 import org.bdgenomics.utils.cli._
 import org.kohsuke.args4j.{ Option => Args4jOption }
 import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 /**
  * Single-end read Bowtie 2 function arguments.
  */
-class SingleEndBowtie2Args extends Args4jBase {
+class SingleEndBowtie2Args extends ReadGroupArgs {
   @Args4jOption(required = false, name = "-executable", usage = "Path to the Bowtie 2 executable. Defaults to bowtie2.")
   var executable: String = "bowtie2"
 
@@ -87,13 +89,17 @@ class SingleEndBowtie2(
 
     val builder = CommandBuilders.create(args.useDocker, args.useSingularity)
       .setExecutable(args.executable)
-      .add("-x")
-      .add(if (args.addFiles) "$0" else absolute(args.indexPath))
-      .add("-U")
-      .add("-")
+    val readGroup = args.createReadGroup
+    val readGroupId = "--rg-id " + readGroup.toSAMReadGroupRecord().getId()
+    val readGroupAttributes = readGroup
+      .toSAMReadGroupRecord()
+      .getAttributes()
+      .asScala
+      .map(a => " --rg " + a.getKey() + ":" + a.getValue())
+      .mkString(" ")
 
     Option(args.bowtie2Args).foreach(builder.add(_))
-
+    builder.add("-x").add(if (args.addFiles) "$0" else absolute(args.indexPath)).add(readGroupId).add(readGroupAttributes).add("-U").add("-")
     if (args.addFiles) {
       // add args.indexPath for "$0"
       builder.addFile(args.indexPath)
@@ -114,9 +120,11 @@ class SingleEndBowtie2(
     implicit val tFormatter = FASTQInFormatter
     implicit val uFormatter = new AnySAMOutFormatter
 
-    reads.pipe[Alignment, AlignmentProduct, AlignmentDataset, FASTQInFormatter](
+    val alignments = reads.pipe[Alignment, AlignmentProduct, AlignmentDataset, FASTQInFormatter](
       cmd = builder.build(),
       files = builder.getFiles()
     )
+
+    alignments.replaceReadGroups(ReadGroupDictionary(Seq(readGroup)))
   }
 }
