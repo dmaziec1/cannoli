@@ -23,16 +23,18 @@ import org.bdgenomics.adam.rdd.ADAMContext._
 import org.bdgenomics.adam.rdd.fragment.{ FragmentDataset, InterleavedFASTQInFormatter }
 import org.bdgenomics.adam.rdd.read.{ AlignmentDataset, AnySAMOutFormatter }
 import org.bdgenomics.adam.sql.{ Alignment => AlignmentProduct }
+import org.bdgenomics.adam.models.ReadGroupDictionary
 import org.bdgenomics.cannoli.builder.CommandBuilders
 import org.bdgenomics.formats.avro.Alignment
 import org.bdgenomics.utils.cli._
 import org.kohsuke.args4j.{ Option => Args4jOption }
 import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 /**
  * Bowtie 2 function arguments.
  */
-class Bowtie2Args extends Args4jBase {
+class Bowtie2Args extends ReadGroupArgs {
   @Args4jOption(required = false, name = "-executable", usage = "Path to the Bowtie 2 executable. Defaults to bowtie2.")
   var executable: String = "bowtie2"
 
@@ -80,11 +82,23 @@ class Bowtie2(
         throw e
       }
     }
+    val readGroup = args.createReadGroup
+    val readGroupId = "--rg-id " + readGroup
+      .toSAMReadGroupRecord()
+      .getId()
+    val readGroupAttributes = readGroup
+      .toSAMReadGroupRecord()
+      .getAttributes()
+      .asScala
+      .map(a => " --rg " + a.getKey() + ":" + a.getValue())
+      .mkString(" ")
 
     val builder = CommandBuilders.create(args.useDocker, args.useSingularity)
       .setExecutable(args.executable)
       .add("-x")
       .add(if (args.addFiles) "$0" else absolute(args.indexPath))
+      .add(readGroupId)
+      .add(readGroupAttributes)
       .add("--interleaved")
       .add("-")
 
@@ -110,9 +124,11 @@ class Bowtie2(
     implicit val tFormatter = InterleavedFASTQInFormatter
     implicit val uFormatter = new AnySAMOutFormatter
 
-    fragments.pipe[Alignment, AlignmentProduct, AlignmentDataset, InterleavedFASTQInFormatter](
+    val alignments = fragments.pipe[Alignment, AlignmentProduct, AlignmentDataset, InterleavedFASTQInFormatter](
       cmd = builder.build(),
       files = builder.getFiles()
     )
+
+    alignments.replaceReadGroups(ReadGroupDictionary(Seq(readGroup)))
   }
 }
