@@ -113,9 +113,8 @@ class Freebayes(
     alignments.pipe[VariantContext, VariantContextProduct, VariantContextDataset, BAMInFormatter](
       cmd = builder.build(),
       files = builder.getFiles()
-    )
-
-    // val headerLines = accumulator.value.distinct
-    // variantContexts.replaceHeaderLines(headerLines)
+    ).sort()
+    val headerLines = accumulator.value.distinct
+    variantContexts.replaceHeaderLines(headerLines)
   }
 }
