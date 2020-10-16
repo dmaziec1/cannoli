@@ -74,6 +74,7 @@ class FreebayesArgs extends Args4jBase {
 class Freebayes(
     val args: FreebayesArgs,
     val stringency: ValidationStringency = ValidationStringency.LENIENT,
+    val accumulator: CollectionAccumulator[VCFHeaderLine],
     sc: SparkContext) extends CannoliFn[AlignmentDataset, VariantContextDataset](sc) {
 
   override def apply(alignments: AlignmentDataset): VariantContextDataset = {
@@ -105,16 +106,12 @@ class Freebayes(
     info("Piping %s to freebayes with command: %s files: %s".format(
       alignments, builder.build(), builder.getFiles()))
 
-    val accumulator: CollectionAccumulator[VCFHeaderLine] = sc.collectionAccumulator("headerLines")
-
     implicit val tFormatter = BAMInFormatter
     implicit val uFormatter = new VCFOutFormatter(sc.hadoopConfiguration, stringency, Some(accumulator))
 
     alignments.pipe[VariantContext, VariantContextProduct, VariantContextDataset, BAMInFormatter](
       cmd = builder.build(),
       files = builder.getFiles()
-    ).sort()
-    val headerLines = accumulator.value.distinct
-    variantContexts.replaceHeaderLines(headerLines)
+    )
   }
 }

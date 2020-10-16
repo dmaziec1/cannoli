@@ -20,6 +20,9 @@ package org.bdgenomics.cannoli.cli
 import grizzled.slf4j.Logging
 import htsjdk.samtools.ValidationStringency
 import org.apache.spark.SparkContext
+import htsjdk.variant.vcf.VCFHeaderLine
+import org.apache.spark.util.CollectionAccumulator
+import scala.collection.JavaConversions._
 import org.bdgenomics.adam.rdd.ADAMContext._
 import org.bdgenomics.adam.rdd.ADAMSaveAnyArgs
 import org.bdgenomics.adam.util.FileExtensions._
@@ -71,7 +74,8 @@ class Freebayes(protected val args: FreebayesArgs) extends BDGSparkCommand[Freeb
 
   def run(sc: SparkContext) {
     val alignments = sc.loadAlignments(args.inputPath, stringency = stringency)
-    val variantContexts = new FreebayesFn(args, stringency, sc).apply(alignments)
+    val accumulator: CollectionAccumulator[VCFHeaderLine] = sc.collectionAccumulator("headerLines")
+    val variantContexts = new FreebayesFn(args, stringency, accumulator, sc).apply(alignments)
 
     if (isVcfExt(args.outputPath)) {
       variantContexts.saveAsVcf(
@@ -84,5 +88,8 @@ class Freebayes(protected val args: FreebayesArgs) extends BDGSparkCommand[Freeb
     } else {
       variantContexts.saveAsParquet(args)
     }
+    val headerLines = accumulator.value.distinct
+    val variantContextsWithHeaders = variantContexts.replaceHeaderLines(headerLines)
+    variantContextsWithHeaders.saveVcfHeaders(args.outputPath + "_headers")
   }
 }

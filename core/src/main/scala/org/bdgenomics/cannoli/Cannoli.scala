@@ -23,7 +23,6 @@ import org.bdgenomics.adam.rdd.fragment.FragmentDataset
 import org.bdgenomics.adam.rdd.read.{ AlignmentDataset, ReadDataset }
 import org.bdgenomics.adam.rdd.sequence.SequenceDataset
 import org.bdgenomics.adam.rdd.variant.VariantContextDataset
-
 /**
  * Implicits on Cannoli function source data sets.
  */
@@ -62,7 +61,10 @@ object Cannoli {
     def callVariantsWithFreebayes(
       args: FreebayesArgs,
       stringency: ValidationStringency = ValidationStringency.LENIENT): VariantContextDataset = {
-      new Freebayes(args, stringency, alignments.rdd.context).apply(alignments)
+      import htsjdk.variant.vcf.VCFHeaderLine
+      import org.apache.spark.util.CollectionAccumulator
+      val accumulator: CollectionAccumulator[VCFHeaderLine] = alignments.rdd.context.collectionAccumulator("headerLines")
+      new Freebayes(args, stringency, accumulator, alignments.rdd.context).apply(alignments)
     }
 
     /**
