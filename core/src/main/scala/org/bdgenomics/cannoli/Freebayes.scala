@@ -109,9 +109,15 @@ class Freebayes(
     implicit val tFormatter = BAMInFormatter
     implicit val uFormatter = new VCFOutFormatter(sc.hadoopConfiguration, stringency, Some(accumulator))
 
-    alignments.pipe[VariantContext, VariantContextProduct, VariantContextDataset, BAMInFormatter](
+    val variantContexts = alignments.pipe[VariantContext, VariantContextProduct, VariantContextDataset, BAMInFormatter](
       cmd = builder.build(),
       files = builder.getFiles()
     )
+<<<<<<< HEAD
+=======
+
+    val headerLines = accumulator.value.distinct
+    variantContexts.replaceHeaderLines(headerLines)
+>>>>>>> parent of bf8deee... Freebayes without replaced headerLines
   }
 }
