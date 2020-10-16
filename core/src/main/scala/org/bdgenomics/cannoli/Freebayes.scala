@@ -113,11 +113,5 @@ class Freebayes(
       cmd = builder.build(),
       files = builder.getFiles()
     )
-<<<<<<< HEAD
-=======
-
-    val headerLines = accumulator.value.distinct
-    variantContexts.replaceHeaderLines(headerLines)
->>>>>>> parent of bf8deee... Freebayes without replaced headerLines
   }
 }
